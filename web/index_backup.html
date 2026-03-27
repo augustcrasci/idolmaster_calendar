@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>아이마스 통합 스케줄 캘린더</title>
+    <style>
+        :root {
+            --c-765: #f34e6c; --c-ml: #ffc20b; --c-gk: #f39800; --c-sm: #11be93;
+            --c-cg: #2581c7; --c-sc: #8dbaff; --c-ds: #424242; --c-multi: #9c27b0;
+            --bg-color: #f8f9fa; --border-color: #e9ecef; --text-main: #212529; --text-muted: #6c757d;
+        }
+        body { font-family: 'Pretendard', -apple-system, sans-serif; background-color: var(--bg-color); color: var(--text-main); margin: 0; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: white; padding: 15px 25px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .header-controls { display: flex; gap: 15px; }
+        button { padding: 8px 16px; border: none; border-radius: 6px; background: #e9ecef; color: #495057; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        button:hover { background: #dee2e6; }
+        button.active { background: var(--text-main); color: white; }
+        .month-nav { display: flex; gap: 10px; align-items: center; font-size: 1.2rem; font-weight: bold; }
+        
+        .filter-section { background: white; padding: 15px 25px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px; }
+        .filter-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .filter-label { font-weight: bold; color: var(--text-muted); font-size: 0.9rem; min-width: 70px; }
+        .pill-checkbox input { display: none; }
+        .pill-checkbox span { display: inline-block; padding: 6px 12px; background: #f1f3f5; border: 1px solid #dee2e6; border-radius: 20px; font-size: 0.85rem; cursor: pointer; transition: 0.2s; color: #495057; user-select: none; }
+        .pill-checkbox input:checked + span { background: var(--text-main); color: white; border-color: var(--text-main); font-weight: bold; }
+        .vip-select { padding: 6px 12px; border: 2px solid var(--c-ml); border-radius: 6px; font-family: inherit; font-size: 0.9rem; font-weight: bold; outline: none; cursor: pointer; background-color: #fff; color: #333; }
+        
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; margin-bottom: 30px; }
+        .weekday-header { text-align: center; font-weight: bold; padding: 10px; color: var(--text-muted); }
+        .day-cell { background: white; border-radius: 10px; min-height: 140px; padding: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 4px; transition: 0.2s; }
+        .day-cell.other-month { background: #fdfdfd; opacity: 0.5; }
+        
+        /* ✨ 메모/배경색 강조 스타일 */
+        .cell-bg-red { background-color: #fff5f5 !important; border-color: #ffc9c9 !important; }
+        .cell-bg-yellow { background-color: #fff9db !important; border-color: #fcc419 !important; }
+        .cell-bg-blue { background-color: #e7f5ff !important; border-color: #a5d8ff !important; }
+        
+        .date-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+        .date-num { font-weight: bold; color: var(--text-muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+        .date-num:hover { background-color: #e9ecef; }
+        .today-badge { color: var(--c-765); background: #ffeeef; border-radius: 50%; width: 26px; height: 26px; line-height: 26px; display: inline-block; text-align: center; padding: 0; }
+        
+        /* ✨ 공휴일 라벨 */
+        .holiday-label { font-size: 0.65rem; font-weight: bold; line-height: 1.2; text-align: right; }
+        .hl-kr { color: #e03131; } .hl-jp { color: #1971c2; }
+        
+        /* ✨ 메모 포스트잇 */
+        .memo-block { background-color: #fffacd; color: #854d0e; padding: 5px 8px; font-size: 0.75rem; border-radius: 4px; margin-bottom: 4px; white-space: pre-wrap; border-left: 3px solid #eab308; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05); font-weight: bold; line-height: 1.3;}
+        .memo-block:hover { filter: brightness(0.95); }
+
+        .event-item { white-space: normal; word-break: keep-all; line-height: 1.3; cursor: pointer; border-radius: 4px; }
+        .event-item.live-event { font-size: 0.75rem; padding: 5px 6px; border: 2px solid; border-left-width: 6px; background: #fff; font-weight: 900; margin-bottom: 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; align-items: flex-start; gap: 4px; }
+        .event-item.major { font-size: 0.75rem; padding: 4px 6px; border-left: 3px solid; background: #fff; border-top: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee; font-weight: bold; margin-bottom: 2px; }
+        .event-item.minor { font-size: 0.7rem; padding: 2px 4px; border-left: 2px solid; opacity: 0.85; margin-top: 2px; background: #fcfcfc; }
+        .event-item.detail { font-size: 0.8rem; padding: 6px; display: flex; align-items: flex-start; gap: 6px; border-left: 4px solid; background: white; margin-bottom: 4px; border-top: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee; }
+        .long-term-bar { height: 6px; margin: 2px 0; border-radius: 3px; cursor: pointer; opacity: 0.85; transition: 0.2s; }
+        .week-spanning { font-size: 0.8rem; padding: 6px 8px; font-weight: bold; color: #222; border-left: 5px solid; margin-bottom: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: flex-start; gap: 8px; }
+        .event-tag { font-size: 0.65rem; padding: 2px 5px; border-radius: 4px; background: rgba(0,0,0,0.05); font-weight: bold; flex-shrink: 0; }
+        .dot-container { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; padding-top: 5px; }
+        .event-dot { width: 8px; height: 8px; border-radius: 50%; cursor: pointer; }
+        
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; padding: 25px; border-radius: 12px; width: 90%; max-width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 80vh; display: flex; flex-direction: column; overflow-y: auto;}
+        .modal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
+        .modal-brand { font-size: 0.8rem; font-weight: bold; padding: 3px 8px; border-radius: 12px; color: white; }
+        .modal-close { cursor: pointer; font-size: 1.5rem; line-height: 1; color: var(--text-muted); }
+        .group-list { overflow-y: auto; padding-right: 5px; display: flex; flex-direction: column; gap: 10px; }
+        .group-item { border: 1px solid #eee; border-left: 4px solid; padding: 12px; border-radius: 8px; background: #fafafa; }
+        .group-item-title { font-weight: bold; margin-bottom: 6px; font-size: 0.9rem; line-height: 1.3;}
+        .group-item-desc { font-size: 0.8rem; color: #666; margin-bottom: 4px; }
+        .modal-link { display: inline-block; margin-top: 8px; padding: 6px 12px; background: var(--text-main); color: white; text-decoration: none; border-radius: 4px; font-size: 0.8rem; text-align: center;}
+        
+        /* 메모 모달용 */
+        .memo-input { width: 100%; height: 100px; margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-family: inherit; resize: none; box-sizing: border-box; }
+        .color-picker { display: flex; gap: 10px; margin-bottom: 10px; }
+        .color-opt { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid #ddd; }
+        .color-opt.selected { border-color: #212529; transform: scale(1.1); box-shadow: 0 0 5px rgba(0,0,0,0.2); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="month-nav">
+            <button id="btn-prev">&lt;</button>
+            <span id="current-month-display">2026년 3월</span>
+            <button id="btn-next">&gt;</button>
+        </div>
+        <div class="header-controls">
+            <label class="pill-checkbox" style="margin-right: 10px;"><input type="checkbox" id="chk-holidays" checked><span>🎌 한/일 휴일</span></label>
+            <button id="btn-month" class="active">월간 뷰</button>
+            <button id="btn-week">주간 뷰</button>
+        </div>
+    </div>
+    <div class="filter-section">
+        <div class="filter-row" id="brand-filters">
+            <span class="filter-label">🏷️ 브랜드:</span>
+            <label class="pill-checkbox"><input type="checkbox" value="합동/전체" checked><span>합동/전체</span></label>
+            <label class="pill-checkbox"><input type="checkbox" value="765PRO" checked><span>765PRO</span></label>
+            <label class="pill-checkbox"><input type="checkbox" value="신데렐라 걸즈" checked><span>신데렐라 걸즈</span></label>
+            <label class="pill-checkbox"><input type="checkbox" value="밀리언 라이브" checked><span>밀리언 라이브!</span></label>
+            <label class="pill-checkbox"><input type="checkbox" value="SideM" checked><span>SideM</span></label>
+            <label class="pill-checkbox"><input type="checkbox" value="샤이니 컬러즈" checked><span>샤이니 컬러즈</span></label>
+            <label class="pill-checkbox"><input type="checkbox" value="학원마스" checked><span>학원마스</span></label>
+            <label class="pill-checkbox"><input type="checkbox" value="기타" checked><span>876/기타</span></label>
+        </div>
+        <div class="filter-row" id="category-filters">
+            <span class="filter-label">🎯 종　류:</span>
+            <label class="pill-checkbox"><input type="checkbox" value="LIVE" checked><span>🎤 라이브/이벤트</span></label>
+            <label class="pill-checkbox"><input type="checkbox" value="BROADCAST" checked><span>📺 방송/라디오</span></label>
+            <label class="pill-checkbox"><input type="checkbox" value="GOODS" checked><span>🛍️ 콜라보/굿즈</span></label>
+            <label class="pill-checkbox"><input type="checkbox" value="BIRTHDAY" checked><span>🎂 생일</span></label>
+            <label class="pill-checkbox"><input type="checkbox" value="TICKET" checked><span>🎟️ 티켓</span></label>
+        </div>
+        <div class="filter-row">
+            <span class="filter-label">⭐ 강　조:</span>
+            <select id="vip-highlight" class="vip-select">
+                <option value="LIVE">🎤 라이브/이벤트 강조 (기본)</option>
+                <option value="BROADCAST">📺 방송/라디오 강조</option>
+                <option value="GOODS">🛍️ 콜라보/굿즈 강조</option>
+                <option value="BIRTHDAY">🎂 생일 강조</option>
+            </select>
+        </div>
+    </div>
+    <div class="calendar-grid" id="weekday-header">
+        <div class="weekday-header" style="color:#f34e6c">일</div>
+        <div class="weekday-header">월</div>
+        <div class="weekday-header">화</div>
+        <div class="weekday-header">수</div>
+        <div class="weekday-header">목</div>
+        <div class="weekday-header">금</div>
+        <div class="weekday-header" style="color:#2581c7">토</div>
+    </div>
+    <div class="calendar-grid" id="calendar-body"></div>
+
+    <div id="single-modal" class="modal-overlay" onclick="closeModal('single-modal', event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span id="s-modal-brand" class="modal-brand"></span>
+                <span class="modal-close" onclick="closeModal('single-modal')">&times;</span>
+            </div>
+            <h3 id="s-modal-title" style="margin-top:0"></h3>
+            <div>
+                <p style="font-size: 0.9rem;"><strong>📅 기간:</strong> <span id="s-modal-date"></span></p>
+                <p style="font-size: 0.9rem;"><strong>🏷️ 분류:</strong> <span id="s-modal-category"></span></p>
+            </div>
+            <a id="s-modal-link" class="modal-link" target="_blank" href="#">자세히 보기</a>
+        </div>
+    </div>
+    
+    <div id="group-modal" class="modal-overlay" onclick="closeModal('group-modal', event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <span id="g-modal-brand" class="modal-brand"></span>
+                <span class="modal-close" onclick="closeModal('group-modal')">&times;</span>
+            </div>
+            <h3 id="g-modal-title" style="margin-top:0; border-bottom: 2px solid #eee; padding-bottom: 10px;"></h3>
+            <div id="g-modal-body" class="group-list"></div>
+        </div>
+    </div>
+
+    <div id="memo-modal" class="modal-overlay" onclick="closeMemo(event)">
+        <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 350px;">
+            <div class="modal-header" style="margin-bottom: 0;">
+                <h3 id="memo-date-title" style="margin: 0;"></h3>
+                <span class="modal-close" onclick="closeMemo(true)">&times;</span>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">날짜 배경색 설정 및 메모 작성</p>
+            <div class="color-picker">
+                <div class="color-opt" id="c-none" style="background:#f8f9fa;" onclick="setMemoColor('')" title="기본"></div>
+                <div class="color-opt" id="c-red" style="background:#fff5f5; border-color:#ffc9c9;" onclick="setMemoColor('red')" title="빨강"></div>
+                <div class="color-opt" id="c-yellow" style="background:#fff9db; border-color:#fcc419;" onclick="setMemoColor('yellow')" title="노랑"></div>
+                <div class="color-opt" id="c-blue" style="background:#e7f5ff; border-color:#a5d8ff;" onclick="setMemoColor('blue')" title="파랑"></div>
+            </div>
+            <textarea id="memo-text" class="memo-input" placeholder="여기에 작성한 메모는 달력에 바로 보입니다!"></textarea>
+            <div style="text-align: right; margin-top: 10px;">
+                <button style="padding: 8px 16px; background: #e9ecef; border-radius: 6px; border: none; cursor: pointer; margin-right: 5px;" onclick="closeMemo(true)">취소</button>
+                <button class="active" style="padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer;" onclick="saveMemo()">저장</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    let allEvents = [];
+    let currentDate = new Date(); 
+    let viewMode = 'month'; 
+    window.eventDataMap = {}; 
+    window.groupDataMap = {}; 
+    let selectedMemoDate = '';
+    let selectedMemoColor = '';
+
+    // ✨ 공휴일 데이터베이스
+    const holidayData = {
+        "2026-01-01": { kr: "신정", jp: "원일" }, "2026-01-12": { kr: "", jp: "성인의 날" },
+        "2026-02-11": { kr: "", jp: "건국기념일" }, "2026-02-16": { kr: "설날 연휴", jp: "" }, "2026-02-17": { kr: "설날", jp: "" }, "2026-02-18": { kr: "설날 연휴", jp: "" },
+        "2026-02-23": { kr: "", jp: "일왕 탄생일" }, "2026-03-01": { kr: "삼일절", jp: "" }, "2026-03-20": { kr: "", jp: "춘분" },
+        "2026-04-29": { kr: "", jp: "쇼와의 날" }, "2026-05-03": { kr: "", jp: "헌법기념일" }, "2026-05-04": { kr: "", jp: "녹색의 날" }, "2026-05-05": { kr: "어린이날", jp: "어린이날" },
+        "2026-05-06": { kr: "", jp: "대체휴일" }, "2026-05-24": { kr: "부처님오신날", jp: "" }, "2026-06-06": { kr: "현충일", jp: "" },
+        "2026-07-20": { kr: "", jp: "바다의 날" }, "2026-08-11": { kr: "", jp: "산의 날" }, "2026-08-15": { kr: "광복절", jp: "" },
+        "2026-09-21": { kr: "", jp: "경로의 날" }, "2026-09-23": { kr: "", jp: "추분" }, "2026-09-24": { kr: "추석 연휴", jp: "" }, "2026-09-25": { kr: "추석", jp: "" }, "2026-09-26": { kr: "추석 연휴", jp: "" },
+        "2026-10-03": { kr: "개천절", jp: "" }, "2026-10-09": { kr: "한글날", jp: "" }, "2026-10-12": { kr: "", jp: "스포츠의 날" },
+        "2026-11-03": { kr: "", jp: "문화의 날" }, "2026-11-23": { kr: "", jp: "근로감사" }, "2026-12-25": { kr: "성탄절", jp: "" }
+    };
+
+    function escapeHtml(text) { return (text || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    const getLocalYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const diffDays = (d1Str, d2Str) => Math.floor((Date.UTC(new Date(d2Str).getFullYear(), new Date(d2Str).getMonth(), new Date(d2Str).getDate()) - Date.UTC(new Date(d1Str).getFullYear(), new Date(d1Str).getMonth(), new Date(d1Str).getDate())) / (1000 * 60 * 60 * 24));
+    
+    // ✨ 4번 해결: 문자열에서 시간 추출
+    const extractTime = (str) => {
+        if(!str) return "99:99";
+        const m = str.match(/(\d{1,2})[:：](\d{2})/); // 반각 콜론과 전각 콜론(：) 모두 인식
+        return m ? `${m[1].padStart(2, '0')}:${m[2]}` : "99:99";
+    };
+
+    function parseBrandInfo(rawBrand) {
+        if (!rawBrand) return { name: '기타', color: 'var(--c-ds)', order: 8 };
+        if (rawBrand.includes(',') || rawBrand.includes('합동') || rawBrand.includes('전체') || rawBrand === '티켓/합동') 
+            return { name: '합동/전체', color: 'var(--c-multi)', order: 1 };
+        if (rawBrand.includes('765') || rawBrand.includes('본가')) return { name: '765PRO', color: 'var(--c-765)', order: 2 };
+        if (rawBrand.includes('데레') || rawBrand.includes('シンデレラ')) return { name: '신데렐라 걸즈', color: 'var(--c-cg)', order: 3 };
+        if (rawBrand.includes('밀리') || rawBrand.includes('ミリオン')) return { name: '밀리언 라이브', color: 'var(--c-ml)', order: 4 };
+        if (rawBrand.includes('사이') || rawBrand.includes('SideM')) return { name: 'SideM', color: 'var(--c-sm)', order: 5 };
+        if (rawBrand.includes('샤니') || rawBrand.includes('シャニ')) return { name: '샤이니 컬러즈', color: 'var(--c-sc)', order: 6 };
+        if (rawBrand.includes('가쿠') || rawBrand.includes('학원')) return { name: '학원마스', color: 'var(--c-gk)', order: 7 };
+        return { name: rawBrand, color: 'var(--c-ds)', order: 8 };
+    }
+
+    async function loadData() {
+        try {
+            // ✨ 에러 방어: 파일이 없으면 빈 배열/객체 반환
+            const fetchJSON = async (url) => { 
+                try { const r = await fetch(url); if (!r.ok) return null; return await r.json(); } 
+                catch { return null; } 
+            };
+
+            const schData = await fetchJSON('schedule_data.json') || [];
+            const bdayData = await fetchJSON('birthday_data.json') || {};
+            const tixData = await fetchJSON('ticket_grouped_data.json') || [];
+
+            for (const [dateKey, idols] of Object.entries(bdayData)) {
+                const [m, d] = dateKey.split('/');
+                const dateStr = `${currentDate.getFullYear()}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+                idols.forEach(idol => {
+                    const id = Math.random().toString(36).substr(2, 9);
+                    const bInfo = parseBrandInfo(idol.brand);
+                    allEvents.push({ id: id, type: 'birthday', title: `🎂 ${idol.name} 생일`, startDate: dateStr, endDate: dateStr, brandName: bInfo.name, color: bInfo.color, brandOrder: bInfo.order, category: '생일', link: '', basePriority: 3, rawDateText: dateStr, time: "99:99" });
+                });
+            }
+
+            tixData.forEach(tix => {
+                const rawBrand = tix.brand || '티켓/합동';
+                const bInfo = parseBrandInfo(rawBrand);
+                tix.applications.forEach(app => {
+                    const dateStr = app.deadline.split(' ')[0];
+                    const id = Math.random().toString(36).substr(2, 9);
+                    allEvents.push({ id: id, type: 'ticket', title: `🎟️ [마감] ${app.phase_title}`, startDate: dateStr, endDate: dateStr, brandName: bInfo.name, color: bInfo.color, brandOrder: bInfo.order, category: '티켓 응모', link: app.description || '', basePriority: 4, rawDateText: app.deadline, time: extractTime(app.deadline) });
+                });
+            });
+
+            schData.forEach(sch => {
+                let sDateMatch = sch.date.match(/(\d{4}-\d{2}-\d{2})/);
+                let sDate = sDateMatch ? sDateMatch[1] : null;
+                if(!sDate) return;
+                
+                let eDate = sDate;
+                const safeCategory = sch.category || '공식일정';
+                const catList = safeCategory.split(',').map(s => s.trim());
+                
+                const isLive = catList.some(c => c === 'ライブ' || c === 'イベント' || c === 'ライブ・イベント');
+                const isBroadcast = catList.some(c => c.includes('配信番組') || c.includes('生配信')) || safeCategory.includes('配信') || safeCategory.includes('ラジオ') || sch.title.includes('ラジオ') || sch.title.includes('配信番組');
+                const isGoods = safeCategory.includes('コラボ') || safeCategory.includes('キャンペーン') || safeCategory.includes('グッズ');
+                
+                let eventType = 'schedule';
+                if(isLive) eventType = 'live'; else if (isBroadcast) eventType = 'broadcast'; else if (isGoods) eventType = 'goods';
+                
+                let basePriority = 5; 
+                let isRanged = false;
+                let rm1 = sch.date.match(/[～~-]\s*(\d{1,2})[\/\月](\d{1,2})/); 
+                let rm2 = sch.date.match(/(\d{1,2})[\/\月](\d{1,2}).*?・\s*(\d{1,2})/); 
+                let rm3 = sch.date.match(/[～~-]\s*(\d{1,2})日/); 
+                
+                if (rm1) { eDate = `${sDate.substring(0,4)}-${rm1[1].padStart(2,'0')}-${rm1[2].padStart(2,'0')}`; isRanged = true; } 
+                else if (rm2) { eDate = `${sDate.substring(0,4)}-${rm2[1].padStart(2,'0')}-${rm2[3].padStart(2,'0')}`; isRanged = true; } 
+                else if (rm3) { eDate = `${sDate.substring(0,4)}-${sDate.split('-')[1]}-${rm3[1].padStart(2,'0')}`; isRanged = true; }
+                
+                if (isRanged) {
+                    let daysDiff = (new Date(eDate) - new Date(sDate)) / (1000*60*60*24);
+                    if (eventType === 'live' && daysDiff <= 4) basePriority = 1; else basePriority = 2; // 라이브 단기=1, 나머지=2
+                } else if (eventType === 'live') {
+                    basePriority = 1; 
+                } else if (eventType === 'broadcast') {
+                    basePriority = 6; 
+                }
+
+                const id = Math.random().toString(36).substr(2, 9);
+                const bInfo = parseBrandInfo(sch.brand);
+                allEvents.push({ id: id, type: eventType, title: sch.title, startDate: sDate, endDate: eDate, brandName: bInfo.name, color: bInfo.color, brandOrder: bInfo.order, category: safeCategory, link: sch.link, basePriority: basePriority, rawDateText: sch.date, time: extractTime(sch.date) });
+            });
+
+            allEvents.forEach(ev => window.eventDataMap[ev.id] = ev);
+            
+            // 날짜 이동 (가장 가까운 일정이 있는 월로)
+            if(allEvents.length > 0) {
+                const nowYMD = getLocalYMD(new Date());
+                const futureEvents = allEvents.filter(e => e.startDate >= nowYMD);
+                if(futureEvents.length > 0) {
+                    const nextEv = futureEvents.sort((a,b) => a.startDate.localeCompare(b.startDate))[0];
+                    currentDate = new Date(nextEv.startDate);
+                }
+            }
+            renderCalendar();
+            
+        } catch (error) {
+            console.error(error);
+            document.getElementById('calendar-body').innerHTML = '<div style="grid-column: 1/-1; padding: 20px; color: red; font-weight:bold;">데이터 파싱 중 에러가 발생했습니다.</div>';
+        }
+    }
+
+    function getFilteredAndPrioritizedEvents() {
+        const checkedBrands = Array.from(document.querySelectorAll('#brand-filters input:checked')).map(cb => cb.value);
+        const checkedCats = Array.from(document.querySelectorAll('#category-filters input:checked')).map(cb => cb.value);
+        const vipTarget = document.getElementById('vip-highlight').value;
+        const processedEvents = [];
+        
+        allEvents.forEach(ev => {
+            if (!checkedBrands.includes(ev.brandName) && ev.brandName !== '합동/전체') return;
+            
+            let passCat = false;
+            if (checkedCats.includes('LIVE') && ev.type === 'live') passCat = true;
+            if (checkedCats.includes('BROADCAST') && ev.type === 'broadcast') passCat = true;
+            if (checkedCats.includes('GOODS') && (ev.type === 'goods' || ev.type === 'schedule')) passCat = true;
+            if (checkedCats.includes('BIRTHDAY') && ev.type === 'birthday') passCat = true;
+            if (checkedCats.includes('TICKET') && ev.type === 'ticket') passCat = true;
+            if (!passCat) return;
+
+            const dynamicEv = { ...ev, currentPriority: ev.basePriority, isHighlight: false, icon: '' };
+            
+            // ✨ 3번 해결: 강조 선택 시 기존 VIP(1순위)를 화면에서 지우지 않고 2 또는 5로 내려서 표시함
+            if (vipTarget === 'LIVE' && ev.type === 'live') { dynamicEv.currentPriority = 1; dynamicEv.isHighlight = true; dynamicEv.icon = '🎤'; }
+            else if (vipTarget === 'BROADCAST' && ev.type === 'broadcast') { dynamicEv.currentPriority = 1; dynamicEv.isHighlight = true; dynamicEv.icon = '📺'; }
+            else if (vipTarget === 'GOODS' && (ev.type === 'goods' || ev.type === 'schedule')) { dynamicEv.currentPriority = 1; dynamicEv.isHighlight = true; dynamicEv.icon = '🛍️'; }
+            else if (vipTarget === 'BIRTHDAY' && ev.type === 'birthday') { dynamicEv.currentPriority = 1; dynamicEv.isHighlight = true; dynamicEv.icon = '🎂'; }
+            else {
+                if(dynamicEv.currentPriority === 1) dynamicEv.currentPriority = (ev.startDate !== ev.endDate) ? 2 : 5; 
+            }
+            
+            processedEvents.push(dynamicEv);
+        });
+        return processedEvents;
+    }
+
+    // ✨ 4번 해결: 정렬(강조 최상단 -> 시간순 -> 중요도순)
+    const eventSorter = (a, b) => {
+        if (a.isHighlight && !b.isHighlight) return -1;
+        if (!a.isHighlight && b.isHighlight) return 1;
+        if (a.time !== b.time) return a.time.localeCompare(b.time);
+        return a.currentPriority - b.currentPriority;
+    };
+
+    function renderCalendar() {
+        const body = document.getElementById('calendar-body');
+        const title = document.getElementById('current-month-display');
+        body.innerHTML = ''; window.groupDataMap = {}; 
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const todayStr = getLocalYMD(new Date()); 
+        
+        const displayEvents = getFilteredAndPrioritizedEvents();
+        const userMemos = JSON.parse(localStorage.getItem('imas_memo') || '{}');
+        const showHolidays = document.getElementById('chk-holidays').checked;
+
+        if (viewMode === 'month') {
+            title.innerText = `${year}년 ${month + 1}월`;
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            for (let i = 0; i < firstDay; i++) body.innerHTML += `<div class="day-cell other-month"></div>`;
+            
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const dailyEvents = displayEvents.filter(e => dateStr >= e.startDate && dateStr <= e.endDate).sort(eventSorter); 
+                
+                const memoData = userMemos[dateStr] || {};
+                const hData = holidayData[dateStr];
+                
+                let holHtml = '';
+                if (showHolidays && hData) {
+                    if (hData.kr) holHtml += `<div class="holiday-label hl-kr">${hData.kr}</div>`;
+                    if (hData.jp) holHtml += `<div class="holiday-label hl-jp">${hData.jp}</div>`;
+                }
+
+                // ✨ 배경색 반영
+                let cellHtml = `<div class="day-cell cell-bg-${memoData.color || ''} ${dateStr === todayStr ? 'today' : ''}">
+                    <div class="date-header">
+                        <span class="date-num ${dateStr === todayStr ? 'today-badge' : ''}" onclick="openMemo('${dateStr}')" title="메모/색상 설정">${d}</span>
+                        <div>${holHtml}</div>
+                    </div>`;
+                
+                // ✨ 1번 해결: 메모 내용이 있으면 날짜 칸 안에 표시
+                if (memoData.memo) {
+                    cellHtml += `<div class="memo-block" onclick="openMemo('${dateStr}')">${escapeHtml(memoData.memo)}</div>`;
+                }
+
+                let dotHtml = '<div style="display:flex; flex-wrap:wrap; margin-top:auto; padding-top:3px;">';
+                
+                // 강조 (VIP) 단일 이벤트 렌더링
+                dailyEvents.filter(e => e.isHighlight && e.startDate === e.endDate).forEach(ev => {
+                    const safeTitle = escapeHtml(ev.title);
+                    cellHtml += `<div class="event-item live-event" style="border-color:${ev.color}; color:${ev.color}; background: linear-gradient(90deg, ${ev.color}15, transparent);" onclick="openSingleModal('${ev.id}')"><span>${ev.icon}</span> <span>${safeTitle}</span></div>`;
+                });
+                
+                // 장기선 그룹화 렌더링
+                const ongoingEvents = dailyEvents.filter(e => e.startDate !== e.endDate);
+                const groupedOngoing = {};
+                ongoingEvents.forEach(ev => { const bName = ev.brandName; if(!groupedOngoing[bName]) groupedOngoing[bName] = { color: ev.color, order: ev.brandOrder, events: [] }; groupedOngoing[bName].events.push(ev); });
+                Object.keys(groupedOngoing).sort((a, b) => groupedOngoing[a].order - groupedOngoing[b].order).forEach(brandName => {
+                    const group = groupedOngoing[brandName]; const groupId = 'grp_' + Math.random().toString(36).substr(2, 9);
+                    window.groupDataMap[groupId] = { title: `✨ ${brandName} 진행중`, brand: brandName, color: group.color, events: group.events };
+                    cellHtml += `<div class="long-term-bar" style="background-color:${group.color};" onclick="openGroupModal('${groupId}')"></div>`;
+                });
+                
+                // ✨ 1번 해결: 방송 프로그램(6순위)도 점이 아닌 텍스트로 노출!
+                dailyEvents.filter(e => !e.isHighlight && e.startDate === e.endDate).forEach(ev => {
+                    const safeTitle = escapeHtml(ev.title);
+                    const clk = `onclick="openSingleModal('${ev.id}')"`;
+                    
+                    // 6순위 이하(일반 이벤트, 티켓, 방송)는 무조건 텍스트로 렌더링
+                    if (ev.currentPriority <= 6) {
+                        cellHtml += `<div class="event-item ${ev.currentPriority <= 4 ? 'major' : 'minor'}" style="border-left-color:${ev.color}" ${clk}>${safeTitle}</div>`;
+                    } else {
+                        dotHtml += `<div class="event-dot" style="background-color:${ev.color}" ${clk}></div>`;
+                    }
+                });
+
+                cellHtml += dotHtml + '</div></div>';
+                body.insertAdjacentHTML('beforeend', cellHtml);
+            }
+        } else if (viewMode === 'week') {
+            const dayOfWeek = currentDate.getDay();
+            const startOfWeek = new Date(currentDate); startOfWeek.setDate(currentDate.getDate() - dayOfWeek);
+            const weekDates = []; for(let i=0; i<7; i++) { let d = new Date(startOfWeek); d.setDate(d.getDate() + i); weekDates.push(getLocalYMD(d)); }
+            
+            title.innerText = `${new Date(weekDates[0]).getMonth()+1}월 ${new Date(weekDates[0]).getDate()}일 ~ ${new Date(weekDates[6]).getMonth()+1}월 ${new Date(weekDates[6]).getDate()}일`;
+            let weekHtml = '';
+
+            weekDates.forEach((dStr, i) => { 
+                const dNum = new Date(dStr).getDate(); 
+                const hData = holidayData[dStr];
+                let holHtml = '';
+                if (showHolidays && hData) {
+                    if (hData.kr) holHtml += ` <span class="holiday-label hl-kr">${hData.kr}</span>`;
+                    if (hData.jp) holHtml += ` <span class="holiday-label hl-jp">${hData.jp}</span>`;
+                }
+                weekHtml += `<div style="grid-column: ${i+1}; text-align:center; padding-bottom:5px; border-bottom: 2px solid var(--border-color);"><span class="date-num ${dStr === todayStr ? 'today-badge' : ''}" onclick="openMemo('${dStr}')" style="display:inline-block; margin-bottom: 4px;">${dNum}일</span><br>${holHtml}</div>`; 
+            });
+
+            // 주간 뷰의 다일(장기) 일정 스팬 처리
+            const allSpans = [];
+            const multiDayEvents = displayEvents.filter(e => e.startDate !== e.endDate && e.startDate <= weekDates[6] && e.endDate >= weekDates[0]);
+            
+            [...new Set(multiDayEvents.map(e => e.brandName))].sort((a,b) => multiDayEvents.find(e => e.brandName === a).brandOrder - multiDayEvents.find(e => e.brandName === b).brandOrder).forEach(bName => {
+                const bEvs = multiDayEvents.filter(e => e.brandName === bName);
+                let startIdx = -1; let currentEvents = new Set();
+                for(let i=0; i<=7; i++) {
+                    if(i < 7 && bEvs.some(e => e.startDate <= weekDates[i] && e.endDate >= weekDates[i])) {
+                        if(startIdx === -1) startIdx = i;
+                        bEvs.filter(e => e.startDate <= weekDates[i] && e.endDate >= weekDates[i]).forEach(e => currentEvents.add(e));
+                    } else {
+                        if(startIdx !== -1) {
+                            const gid = 'grp_' + Math.random().toString(36).substr(2, 9); 
+                            window.groupDataMap[gid] = { title: `✨ ${bName} 진행중`, brand: bName, color: bEvs[0].color, events: Array.from(currentEvents) }; 
+                            allSpans.push({ groupId: gid, color: bEvs[0].color, title: `~ ${bName} 진행중 ~`, order: bEvs[0].brandOrder, startCol: startIdx + 1, endCol: i + 1 }); 
+                            startIdx = -1; currentEvents = new Set(); 
+                        }
+                    }
+                }
+            });
+            
+            allSpans.sort((a,b) => a.order - b.order || a.startCol - b.startCol);
+            let tracks = []; let maxRow = 1;
+            allSpans.forEach(s => {
+                let trackIdx = -1; for(let i=0; i<tracks.length; i++) { if(tracks[i] <= s.startCol) { trackIdx = i; break; } }
+                if(trackIdx === -1) { trackIdx = tracks.length; tracks.push(s.endCol); } else { tracks[trackIdx] = s.endCol; }
+                s.row = 2 + trackIdx; maxRow = Math.max(maxRow, s.row);
+                weekHtml += `<div class="event-item week-spanning" style="grid-column: ${s.startCol} / ${s.endCol}; grid-row: ${s.row}; background: ${s.color}15; border-left-color: ${s.color};" onclick="openGroupModal('${s.groupId}')"><span class="event-tag" style="color:${s.color}; margin-right:4px;">진행중</span> <span>${s.title}</span></div>`;
+            });
+
+            // 주간 뷰의 단일 일정 처리 (메모 포함)
+            let dayStartRow = maxRow + 1;
+            weekDates.forEach((dStr, i) => {
+                const singleDayEvents = displayEvents.filter(e => e.startDate === dStr && e.endDate === dStr).sort(eventSorter);
+                const memoData = userMemos[dStr] || {};
+                
+                let cellHtml = `<div class="day-cell cell-bg-${memoData.color || ''}" style="grid-column: ${i+1}; grid-row: ${dayStartRow}; border:none; box-shadow:none; padding:5px 0;">`;
+                
+                if (memoData.memo) {
+                    cellHtml += `<div class="memo-block" onclick="openMemo('${dStr}')">${escapeHtml(memoData.memo)}</div>`;
+                }
+
+                singleDayEvents.forEach(ev => {
+                    const tTag = ev.time !== "99:99" ? `<span style="font-size:0.65rem; opacity:0.7;">[${ev.time}]</span> ` : '';
+                    const clk = `onclick="openSingleModal('${ev.id}')"`;
+                    
+                    if (ev.isHighlight) {
+                        cellHtml += `<div class="event-item detail live-event" style="border-color:${ev.color}; color:${ev.color}; background: linear-gradient(90deg, ${ev.color}15, #fff); font-weight:bold; margin-bottom:4px;" ${clk}><span>${ev.icon}</span> <span>${tTag}${escapeHtml(ev.title)}</span></div>`;
+                    } else {
+                        cellHtml += `<div class="event-item detail" style="border-left-color:${ev.color}; margin-bottom:4px;" ${clk}><span>${tTag}${escapeHtml(ev.title)}</span></div>`;
+                    }
+                });
+                
+                cellHtml += `</div>`; 
+                weekHtml += cellHtml;
+            });
+            body.innerHTML = weekHtml;
+        }
+    }
+
+    function openMemo(dateStr) {
+        selectedMemoDate = dateStr;
+        const memoData = JSON.parse(localStorage.getItem('imas_memo') || '{}')[dateStr] || { memo: '', color: '' };
+        document.getElementById('memo-date-title').innerText = `${dateStr} 설정`;
+        document.getElementById('memo-text').value = memoData.memo;
+        setMemoColor(memoData.color);
+        document.getElementById('memo-modal').style.display = 'flex';
+    }
+    function setMemoColor(color) {
+        selectedMemoColor = color;
+        document.querySelectorAll('.color-opt').forEach(el => el.classList.remove('selected'));
+        document.getElementById(`c-${color || 'none'}`).classList.add('selected');
+    }
+    function saveMemo() {
+        const memos = JSON.parse(localStorage.getItem('imas_memo') || '{}');
+        memos[selectedMemoDate] = { memo: document.getElementById('memo-text').value, color: selectedMemoColor };
+        localStorage.setItem('imas_memo', JSON.stringify(memos));
+        closeMemo(true); renderCalendar();
+    }
+    function closeMemo(force = false) { 
+        if(force || event.target.id === 'memo-modal') document.getElementById('memo-modal').style.display = 'none'; 
+    }
+
+    function openSingleModal(id) {
+        const ev = window.eventDataMap[id];
+        if(!ev) return;
+        document.getElementById('s-modal-brand').innerText = ev.brandName; document.getElementById('s-modal-brand').style.backgroundColor = ev.color;
+        document.getElementById('s-modal-title').innerText = ev.title; document.getElementById('s-modal-category').innerText = ev.category;
+        document.getElementById('s-modal-date').innerText = ev.rawDateText || ev.startDate;
+        const linkBtn = document.getElementById('s-modal-link'); if(ev.link && ev.link !== "null") { linkBtn.style.display = 'inline-block'; linkBtn.href = ev.link; } else { linkBtn.style.display = 'none'; }
+        document.getElementById('single-modal').style.display = 'flex';
+    }
+    function openGroupModal(gid) {
+        const data = window.groupDataMap[gid]; if(!data) return;
+        document.getElementById('g-modal-brand').innerText = data.brand; document.getElementById('g-modal-brand').style.backgroundColor = data.color;
+        document.getElementById('g-modal-title').innerText = data.title;
+        let html = '';
+        data.events.forEach(ev => { html += `<div class="group-item" style="border-left-color: ${data.color}"><div class="group-item-title">${escapeHtml(ev.title)}</div><div class="group-item-desc">📅 기간: ${ev.rawDateText || ev.startDate}</div><div class="group-item-desc">🏷️ 분류: ${ev.category}</div>${ev.link ? `<a href="${ev.link}" target="_blank" class="modal-link">자세히 보기</a>` : ''}</div>`; });
+        document.getElementById('g-modal-body').innerHTML = html; document.getElementById('group-modal').style.display = 'flex';
+    }
+    function closeModal(id, force) { if(force || event.target.id === id) document.getElementById(id).style.display = 'none'; }
+
+    document.getElementById('btn-prev').onclick = () => { viewMode === 'month' ? currentDate.setMonth(currentDate.getMonth() - 1) : currentDate.setDate(currentDate.getDate() - 7); renderCalendar(); };
+    document.getElementById('btn-next').onclick = () => { viewMode === 'month' ? currentDate.setMonth(currentDate.getMonth() + 1) : currentDate.setDate(currentDate.getDate() + 7); renderCalendar(); };
+    document.getElementById('btn-month').onclick = (e) => { viewMode = 'month'; document.getElementById('btn-month').classList.add('active'); document.getElementById('btn-week').classList.remove('active'); renderCalendar(); };
+    document.getElementById('btn-week').onclick = (e) => { viewMode = 'week'; document.getElementById('btn-week').classList.add('active'); document.getElementById('btn-month').classList.remove('active'); renderCalendar(); };
+    
+    document.querySelectorAll('.filter-section input[type="checkbox"], .filter-section select').forEach(el => { el.addEventListener('change', renderCalendar); });
+
+    loadData();
+</script>
+</body>
+</html>
