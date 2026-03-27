@@ -1,0 +1,19 @@
+﻿# Python cache
+__pycache__/
+*.py[cod]
+
+# Local runtime files
+.viewer.pid
+__viewer_out.txt
+__viewer_err.txt
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
